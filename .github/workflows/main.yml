@@ -1,0 +1,172 @@
+name: Validate Atlas Config
+
+on: [push]
+
+jobs:
+  validate-prometheus:
+    name: Prometheus config & rules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Prometheus tools
+        run: |
+          PROM_VERSION="2.50.1"
+          wget -q https://github.com/prometheus/prometheus/releases/download/v${PROM_VERSION}/prometheus-${PROM_VERSION}.linux-amd64.tar.gz
+          tar xf prometheus-${PROM_VERSION}.linux-amd64.tar.gz
+          sudo mv prometheus-${PROM_VERSION}.linux-amd64/promtool /usr/local/bin/
+          promtool --version
+
+      - name: Render Prometheus target templates
+        run: |
+          # Substitute dummy values — CI only checks syntax, not real IPs
+          export UNRAID_IP="192.168.4.1"
+          export CONTROL_PLANE_IP="192.168.4.1"
+          for tmpl in atlas/control-plane/observe/configs/prometheus/targets/*.yml.tmpl; do
+            out="${tmpl%.tmpl}"
+            envsubst < "$tmpl" > "$out"
+            echo "Rendered $tmpl -> $out"
+          done
+
+      - name: Check Prometheus config
+        run: |
+          promtool check config \
+            atlas/control-plane/observe/configs/prometheus/prometheus.yml
+
+      - name: Check Prometheus rules
+        run: |
+          promtool check rules \
+            atlas/control-plane/observe/configs/prometheus/rules/*.yml
+
+      - name: Unit test recording & alert rules
+        run: |
+          if ls atlas/control-plane/observe/configs/prometheus/tests/*.yml 2>/dev/null; then
+            promtool test rules \
+              atlas/control-plane/observe/configs/prometheus/tests/*.yml
+          else
+            echo "No rule unit tests found — skipping"
+          fi
+
+  validate-alertmanager:
+    name: Alertmanager config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Alertmanager tools
+        run: |
+          AM_VERSION="0.27.0"
+          wget -q https://github.com/prometheus/alertmanager/releases/download/v${AM_VERSION}/alertmanager-${AM_VERSION}.linux-amd64.tar.gz
+          tar xf alertmanager-${AM_VERSION}.linux-amd64.tar.gz
+          sudo mv alertmanager-${AM_VERSION}.linux-amd64/amtool /usr/local/bin/
+          amtool --version
+
+      - name: Render Alertmanager template
+        env:
+          ALERTMANAGER_SMTP_FROM: "ci@example.com"
+          ALERTMANAGER_SMTP_HOST: "smtp.example.com:587"
+          ALERTMANAGER_SMTP_USERNAME: "ci@example.com"
+          ALERTMANAGER_SMTP_PASSWORD: "ci-placeholder"
+          ALERTMANAGER_EMAIL_TO: "ci@example.com"
+          WATCHDOG_PING_URL: "https://hc-ping.com/ci-placeholder"
+        run: |
+          envsubst < \
+            atlas/control-plane/alert/configs/alertmanager/alertmanager.yml.tmpl > \
+            atlas/control-plane/alert/configs/alertmanager/alertmanager.yml
+          echo "Rendered alertmanager.yml"
+
+      - name: Check Alertmanager config
+        run: |
+          amtool check-config \
+            atlas/control-plane/alert/configs/alertmanager/alertmanager.yml
+
+      - name: Verify alert routes
+        run: |
+          # Confirm Watchdog routes to the watchdog receiver, not email
+          amtool config routes test \
+            --config.file atlas/control-plane/alert/configs/alertmanager/alertmanager.yml \
+            --verify.receivers=watchdog \
+            alertname="Watchdog"
+
+          # Confirm critical alerts route to email
+          amtool config routes test \
+            --config.file atlas/control-plane/alert/configs/alertmanager/alertmanager.yml \
+            --verify.receivers=email \
+            alertname="HostDown" severity="critical"
+
+  validate-compose:
+    name: Docker Compose config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create stub env files
+        run: |
+          cp atlas/control-plane/env/.env.example atlas/control-plane/env/.env
+          cp atlas/control-plane/env/.secrets.env.example atlas/control-plane/env/.secrets.env
+          # Fill required values with CI placeholders
+          sed -i 's/=$/=ci-placeholder/g' atlas/control-plane/env/.env
+          sed -i 's/=$/=ci-placeholder/g' atlas/control-plane/env/.secrets.env
+
+      - name: Validate control plane compose
+        run: |
+          docker compose \
+            -f atlas/control-plane/core.yml \
+            -f atlas/control-plane/alert/alert.yml \
+            -f atlas/control-plane/monitor/monitor.yml \
+            -f atlas/control-plane/observe/observe.yml \
+            -f atlas/control-plane/log/log.yml \
+            --env-file atlas/control-plane/env/.env \
+            --env-file atlas/control-plane/env/.secrets.env \
+            config --quiet
+          echo "Control plane compose config is valid"
+
+      - name: Validate workload plane compose
+        run: |
+          docker compose \
+            -f atlas/workload-plane/core.yml \
+            -f atlas/workload-plane/automation/automation.yml \
+            -f atlas/workload-plane/download/download.yml \
+            -f atlas/workload-plane/log/log.yml \
+            -f atlas/workload-plane/media/media.yml \
+            config --quiet
+          echo "Workload plane compose config is valid"
+
+  validate-runbooks:
+    name: Runbook coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check every alert has a runbook
+        run: |
+          echo "Checking runbook coverage..."
+          MISSING=0
+
+          # Extract all alert names from rules files
+          ALERTS=$(grep -h '^\s*alert:' \
+            atlas/control-plane/observe/configs/prometheus/rules/*.yml \
+            | sed 's/.*alert:\s*//' | tr -d '"' | sort -u)
+
+          for alert in $ALERTS; do
+            # Convert CamelCase to kebab-case for runbook filename lookup
+            kebab=$(echo "$alert" \
+              | sed 's/\([A-Z]\)/-\1/g' \
+              | sed 's/^-//' \
+              | tr '[:upper:]' '[:lower:]')
+            runbook="runbooks/${kebab}.md"
+            if [ ! -f "$runbook" ]; then
+              echo "MISSING runbook: $runbook (alert: $alert)"
+              MISSING=$((MISSING + 1))
+            else
+              echo "OK: $runbook"
+            fi
+          done
+
+          if [ $MISSING -gt 0 ]; then
+            echo ""
+            echo "$MISSING runbook(s) missing — add them to pass this check"
+            exit 1
+          fi
+
+          echo "All alerts have runbooks."
