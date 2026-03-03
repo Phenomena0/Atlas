@@ -66,7 +66,7 @@ jobs:
           amtool config routes test \
             --config.file atlas/control-plane/alert/configs/alertmanager/alertmanager.yml \
             --verify.receivers=watchdog \
-            alertname="Watchdog"
+            alertname="watchdog"
 
           # Confirm critical alerts route to email
           amtool config routes test \
