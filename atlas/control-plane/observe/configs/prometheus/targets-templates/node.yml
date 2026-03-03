@@ -1,0 +1,7 @@
+- targets:
+    - ${MEDIA_STACK_HOST}:9100
+  labels:
+    env: lab
+    plane: unraid
+    host: unraid
+    role: nas
