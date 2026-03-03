@@ -43,8 +43,8 @@ jobs:
 
       - name: Render Alertmanager template
         env:
-          ALERTMANAGER_SMTP_FROM: "ci@example.com"
           ALERTMANAGER_SMTP_HOST: "smtp.example.com:587"
+          ALERTMANAGER_SMTP_FROM: "ci@example.com"
           ALERTMANAGER_SMTP_USERNAME: "ci@example.com"
           ALERTMANAGER_SMTP_PASSWORD: "ci-placeholder"
           ALERTMANAGER_EMAIL_TO: "ci@example.com"
@@ -62,17 +62,33 @@ jobs:
 
       - name: Verify alert routes
         run: |
-          # Confirm Watchdog routes to the watchdog receiver, not email
-          amtool config routes test \
-            --config.file atlas/control-plane/alert/configs/alertmanager/alertmanager.yml \
-            --verify.receivers=watchdog \
-            alertname="watchdog"
+          CFG=atlas/control-plane/alert/configs/alertmanager/alertmanager.yml
 
-          # Confirm critical alerts route to email
+          # Watchdog must route to the webhook receiver, never email
           amtool config routes test \
-            --config.file atlas/control-plane/alert/configs/alertmanager/alertmanager.yml \
-            --verify.receivers=email \
+            --config.file "$CFG" \
+            --verify.receivers=watchdog \
+            alertname="Watchdog"
+
+          # Critical severity must route to email-critical
+          amtool config routes test \
+            --config.file "$CFG" \
+            --verify.receivers=email-critical \
             alertname="HostDown" severity="critical"
+
+          # Warning severity must route to email-warning
+          amtool config routes test \
+            --config.file "$CFG" \
+            --verify.receivers=email-warning \
+            alertname="HostHighCpu" severity="warning"
+
+          # Info severity must route to email-default
+          amtool config routes test \
+            --config.file "$CFG" \
+            --verify.receivers=email-default \
+            alertname="SLOBurnRateTrend" severity="info"
+
+          echo "All route assertions passed"
 
   validate-compose:
     name: Docker Compose config

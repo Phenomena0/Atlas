@@ -22,8 +22,8 @@ For `AlertmanagerNotificationsFailed`: notifications are being generated but del
 4. Check `atlas-alert-render-config` container exited successfully: `docker ps -a | grep render`
 
 ### Alertmanager notification failures
-1. Check SMTP credentials in `.secrets.env` (`SMTP_PASSWORD`)
-2. Check `SMTP_SMARTHOST` is reachable from the control-plane host
+1. Check SMTP credentials in `.secrets.env` (`ALERTMANAGER_SMTP_PASSWORD`)
+2. Check `ALERTMANAGER_SMTP_HOST` is reachable from the control-plane host
 3. Verify `WATCHDOG_PING_URL` is valid and reachable (for watchdog receiver)
 4. Check Alertmanager logs for the specific integration error: `docker logs atlas-alert`
 

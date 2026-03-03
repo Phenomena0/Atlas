@@ -3,7 +3,7 @@ global:
   smtp_smarthost: "${ALERTMANAGER_SMTP_HOST}"
   smtp_from: "${ALERTMANAGER_SMTP_FROM}"
   smtp_auth_username: "${ALERTMANAGER_SMTP_USERNAME}"
-  smtp_auth_password: "${SMTP_PASSWORD}"
+  smtp_auth_password: "${ALERTMANAGER_SMTP_PASSWORD}"
   smtp_require_tls: true
 
 route:
@@ -68,8 +68,6 @@ receivers:
         headers:
           subject: "[MiseEnPlace][CRITICAL] {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}"
 
-  # Watchdog dead man's switch — pings a URL every minute.
-  # Register a check at https://healthchecks.io and set WATCHDOG_PING_URL in .secrets.env.
   - name: watchdog
     webhook_configs:
       - url: "${WATCHDOG_PING_URL}"
