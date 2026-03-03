@@ -1,6 +1,6 @@
 services:
   atlas-prowlarr:
-    image: lscr.io/linuxserver/prowlarr:latest
+    image: lscr.io/linuxserver/prowlarr:2.3.0
     container_name: atlas-prowlarr
     environment:
       - PUID=99
@@ -15,7 +15,7 @@ services:
       - atlas-workload-network
 
   atlas-cleanuparr:
-    image: ghcr.io/cleanuparr/cleanuparr:latest
+    image: ghcr.io/cleanuparr/cleanuparr:2.7.7
     container_name: atlas-cleanuparr
     environment:
       - PUID=99

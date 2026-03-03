@@ -19,7 +19,7 @@ services:
       - atlas-workload-network
 
   atlas-alloy:
-    image: grafana/alloy:latest
+    image: grafana/alloy:v1.13.2
     container_name: atlas-alloy
     restart: unless-stopped
     volumes:

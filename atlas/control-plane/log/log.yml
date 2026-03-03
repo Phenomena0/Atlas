@@ -12,7 +12,7 @@ services:
     networks: [atlas-controlplane-network]
 
   atlas-alloy:
-    image: grafana/alloy:latest
+    image: grafana/alloy:v1.13.2
     container_name: atlas-alloy
     restart: unless-stopped
     command: run --server.http.listen-addr=0.0.0.0:12345 /etc/alloy/config.alloy

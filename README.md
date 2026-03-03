@@ -3,15 +3,13 @@
 
 Atlas is a production-grade homelab platform built to senior SRE standards. It runs a self-hosted media and automation stack on Unraid, backed by a fully code-defined observability platform — multi-window SLO burn-rate alerting, structured log aggregation, synthetic probing, and a CI-validated configuration pipeline. All alerts link to runbooks. The entire stack is validated on every push via GitHub Actions.
 
-The control plane is being actively migrated to a kubeadm Kubernetes cluster (3-node, on Unraid VMs) with Flux GitOps and External Secrets.
-
 ---
 
 ## Architecture
 
 ```mermaid
 flowchart TB
-    subgraph Unraid["Unraid Host (192.168.4.55)"]
+    subgraph Unraid["Unraid Host"]
         subgraph WP["Workload Plane · Docker"]
             direction TB
             Plex["Plex :32400"]
@@ -23,17 +21,17 @@ flowchart TB
             NE["Node Exporter :9100"]
             WA["Alloy (workload) :12345"]
         end
+    end
 
-        subgraph CP["Control Plane · Docker Compose (→ K8s)"]
-            direction TB
-            Prom["Prometheus :9090"]
-            AM["Alertmanager :9093"]
-            Graf["Grafana :3000"]
-            Loki["Loki :3100"]
-            BB["Blackbox Exporter :9115"]
-            CA["Alloy (control) :12345"]
-            PlexExp["Plex Exporter :9594"]
-        end
+    subgraph Local["Control Plane · Docker Compose"]
+        direction TB
+        Prom["Prometheus :9090"]
+        AM["Alertmanager :9093"]
+        Graf["Grafana :3000"]
+        Loki["Loki :3100"]
+        BB["Blackbox Exporter :9115"]
+        CA["Alloy (control) :12345"]
+        PlexExp["Plex Exporter :9594"]
     end
 
     subgraph External["External"]
@@ -58,15 +56,15 @@ flowchart TB
 
 ## Architecture Overview
 
-Atlas is split into two logical planes, each deployed as a Docker Compose project (control plane migrating to Kubernetes).
+Atlas is split into two logical planes, each deployed as a Docker Compose project.
 
 ### Control Plane
-Responsible for observability and reliability enforcement.
+Responsible for observability and reliability enforcement. Runs on the local machine.
 
 | Component | Role | Port |
 |---|---|---|
 | Prometheus `v2.50.1` | Metrics collection & rule evaluation | `9090` |
-| Blackbox Exporter | Synthetic HTTP/TCP probing | `9115` |
+| Blackbox Exporter `v0.28.0` | Synthetic HTTP/TCP probing | `9115` |
 | Plex Exporter | Plex-specific metrics | `9594` |
 | Alertmanager `v0.27.0` | Alert routing & deduplication | `9093` |
 | Grafana `v10.4.3` | Dashboarding & visualisation | `3000` |
@@ -104,7 +102,7 @@ Deployment is handled by [`scripts/deploy.ps1`](scripts/deploy.ps1). It:
 
 1. Copies the Alloy config to the Unraid host via `scp`
 2. Deploys the **workload plane** to the Unraid Docker engine via `docker --context unraid compose`
-3. Deploys the **control plane** via `docker compose` (migrating to `kubectl apply -k k8s/overlays/lab`)
+3. Deploys the **control plane** via `docker compose` (local)
 
 ```powershell
 .\scripts\deploy.ps1
@@ -116,7 +114,7 @@ The control plane reads two env files from `atlas/control-plane/env/`:
 
 | File | Purpose |
 |---|---|
-| `.env` | Non-secret config (SMTP settings, Grafana config, Plex URL, host IPs) |
+| `.env` | Non-secret config (SMTP settings, Grafana config, host IPs) |
 | `.secrets.env` | Secrets (SMTP password, Grafana admin password, Plex token, Watchdog URL) |
 
 Copy the example files to get started:
@@ -126,7 +124,7 @@ Copy-Item atlas\control-plane\env\.env.example     atlas\control-plane\env\.env
 Copy-Item atlas\control-plane\env\.secrets.env.example atlas\control-plane\env\.secrets.env
 ```
 
-> The Alertmanager config (`alertmanager.yml.tmpl`) is rendered at deploy time via `envsubst`, injecting values from the env files. The rendered `alertmanager.yml` is gitignored.
+> Both the Alertmanager config (`alertmanager.yml.tmpl`) and Prometheus target files (`targets-templates/*.yml`) are rendered at deploy time via `envsubst`. Rendered outputs are gitignored.
 
 ---
 
@@ -142,7 +140,7 @@ atlas/
 │   │   └── configs/prometheus/
 │   │       ├── prometheus.yml
 │   │       ├── rules/            # recording, watchdog, prometheus, infra, storage, services, slo
-│   │       └── targets/          # node, blackbox_http, blackbox_tcp
+│   │       └── targets-templates/  # envsubst templates → rendered into named volume at deploy
 │   ├── monitor/                  # Grafana + provisioning + dashboards
 │   └── log/                      # Loki + Alloy (control-plane log collection)
 │
@@ -155,7 +153,7 @@ atlas/
 │
 ├── runbooks/                     # One file per alert, linked from alert annotations
 ├── scripts/
-│   ├── deploy.ps1                # Docker Compose deployment (workload plane)
+│   └── deploy.ps1                # End-to-end deployment script
 └── .github/workflows/
     └── validate.yml              # CI: promtool, amtool, compose config, runbook coverage
 ```
@@ -260,6 +258,7 @@ All metrics carry consistent labels:
 
 This enables reliable slicing, aggregation, and long-term maintainability.
 
+---
 
 ## Alert Philosophy
 
