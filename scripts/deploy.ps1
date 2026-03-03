@@ -24,7 +24,7 @@ Write-Host "Workload plane services deployed."
 
 Write-Host "Starting deployment of Atlas control plane"
 
-docker --context unraid compose `
+docker compose `
   -f "$atlasRoot\control-plane\core.yml" `
   -f "$atlasRoot\control-plane\alert\alert.yml" `
   -f "$atlasRoot\control-plane\monitor\monitor.yml" `
