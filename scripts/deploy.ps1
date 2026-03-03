@@ -18,7 +18,7 @@ docker --context unraid compose `
   -f "$atlasRoot\workload-plane\download\download.yml" `
   -f "$atlasRoot\workload-plane\log\log.yml" `
   -f "$atlasRoot\workload-plane\media\media.yml" `
-  up -d
+  up --force-recreate -d
 Write-Host "Workload plane services deployed."
 
 
@@ -32,5 +32,5 @@ docker compose `
   -f "$atlasRoot\control-plane\log\log.yml" `
   --env-file "$atlasRoot\control-plane\env\.env" `
   --env-file "$atlasRoot\control-plane\env\.secrets.env" `
-  up -d
+  up --force-recreate -d
 Write-Host "Control plane services deployed."

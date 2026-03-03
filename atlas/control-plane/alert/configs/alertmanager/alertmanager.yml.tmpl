@@ -52,21 +52,21 @@ receivers:
       - to: "${ALERTMANAGER_EMAIL_TO}"
         send_resolved: true
         headers:
-          subject: "[MiseEnPlace] {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}"
+          subject: "[Atlas] {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}"
 
   - name: email-warning
     email_configs:
       - to: "${ALERTMANAGER_EMAIL_TO}"
         send_resolved: true
         headers:
-          subject: "[MiseEnPlace][WARNING] {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}"
+          subject: "[Atlas][WARNING] {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}"
 
   - name: email-critical
     email_configs:
       - to: "${ALERTMANAGER_EMAIL_TO}"
         send_resolved: true
         headers:
-          subject: "[MiseEnPlace][CRITICAL] {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}"
+          subject: "[Atlas][CRITICAL] {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}"
 
   - name: watchdog
     webhook_configs:
