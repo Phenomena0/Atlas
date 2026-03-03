@@ -1,0 +1,32 @@
+services:
+  atlas-prometheus:
+    image: prom/prometheus:v2.50.1
+    container_name: atlas-prometheus
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observe/configs/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observe/configs/prometheus/rules:/etc/prometheus/rules:ro
+      - ./observe/configs/prometheus/targets:/etc/prometheus/targets:ro
+      - prometheus_data:/prometheus
+    networks: [atlas-controlplane-network]
+
+  atlas-blackbox-exporter:
+    image: prom/blackbox-exporter:latest
+    container_name: atlas-blackbox-exporter
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/blackbox_exporter/config.yml
+    ports:
+      - "9115:9115"
+    volumes:
+      - ./observe/configs/blackbox/config.yml:/etc/blackbox_exporter/config.yml:ro
+    networks: [atlas-controlplane-network]
+
+    

@@ -1,0 +1,64 @@
+groups:
+  - name: storage.capacity
+    rules:
+      - alert: FilesystemReadOnly
+        expr: node_filesystem_readonly{job="node"} == 1
+        for: 2m
+        labels:
+          severity: critical
+          category: storage
+        annotations:
+          summary: "Filesystem is read-only on {{ $labels.host }} ({{ $labels.mountpoint }})"
+          description: "Device {{ $labels.device }} mounted at {{ $labels.mountpoint }} is read-only."
+          runbook: "runbooks/filesystem-readonly.md"
+
+      - alert: DiskSpaceLowWarning
+        expr: |
+          (
+            node_filesystem_avail_bytes{job="node",fstype!~"tmpfs|devtmpfs|overlay|squashfs|nsfs|ramfs|cgroup2?|autofs"}
+            /
+            node_filesystem_size_bytes{job="node",fstype!~"tmpfs|devtmpfs|overlay|squashfs|nsfs|ramfs|cgroup2?|autofs"}
+          ) < 0.15
+          and node_filesystem_readonly{job="node"} == 0
+        for: 10m
+        labels:
+          severity: warning
+          category: storage
+        annotations:
+          summary: "Disk space low (<15%) on {{ $labels.host }} ({{ $labels.mountpoint }})"
+          description: "Free space below 15% for 10m on {{ $labels.device }} mounted at {{ $labels.mountpoint }}."
+          runbook: "runbooks/disk-space-low.md"
+
+      - alert: DiskSpaceLowCritical
+        expr: |
+          (
+            node_filesystem_avail_bytes{job="node",fstype!~"tmpfs|devtmpfs|overlay|squashfs|nsfs|ramfs|cgroup2?|autofs"}
+            /
+            node_filesystem_size_bytes{job="node",fstype!~"tmpfs|devtmpfs|overlay|squashfs|nsfs|ramfs|cgroup2?|autofs"}
+          ) < 0.10
+          and node_filesystem_readonly{job="node"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          category: storage
+        annotations:
+          summary: "Disk space critical (<10%) on {{ $labels.host }} ({{ $labels.mountpoint }})"
+          description: "Free space below 10% for 5m on {{ $labels.device }} mounted at {{ $labels.mountpoint }}."
+          runbook: "runbooks/disk-space-low.md"
+
+      - alert: InodesLow
+        expr: |
+          (
+            node_filesystem_files_free{job="node",fstype!~"tmpfs|devtmpfs|overlay|squashfs|nsfs|ramfs|cgroup2?|autofs"}
+            /
+            node_filesystem_files{job="node",fstype!~"tmpfs|devtmpfs|overlay|squashfs|nsfs|ramfs|cgroup2?|autofs"}
+          ) < 0.05
+          and node_filesystem_readonly{job="node"} == 0
+        for: 10m
+        labels:
+          severity: warning
+          category: storage
+        annotations:
+          summary: "Inodes low (<5%) on {{ $labels.host }} ({{ $labels.mountpoint }})"
+          description: "Free inodes below 5% for 10m on {{ $labels.device }} mounted at {{ $labels.mountpoint }}."
+          runbook: "runbooks/inodes-low.md"

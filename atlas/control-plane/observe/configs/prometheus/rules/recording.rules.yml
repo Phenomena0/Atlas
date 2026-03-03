@@ -1,0 +1,60 @@
+groups:
+  - name: node.recording
+    # Pre-aggregated node metrics consumed by the Unraid overview dashboard.
+    # Dashboards reference these names rather than raw expressions.
+    rules:
+      - record: instance:node_cpu_utilisation:rate5m
+        expr: >
+          1 - avg by (instance, host, env, plane) (
+            rate(node_cpu_seconds_total{job="node", mode="idle"}[5m])
+          )
+
+      - record: instance:node_memory_utilisation:ratio
+        expr: >
+          1 - (
+            node_memory_MemAvailable_bytes{job="node"}
+            / node_memory_MemTotal_bytes{job="node"}
+          )
+
+      - record: instance:node_network_receive_bytes:rate5m
+        expr: >
+          sum by (instance, host, env, plane) (
+            rate(node_network_receive_bytes_total{job="node", device!="lo"}[5m])
+          )
+
+      - record: instance:node_network_transmit_bytes:rate5m
+        expr: >
+          sum by (instance, host, env, plane) (
+            rate(node_network_transmit_bytes_total{job="node", device!="lo"}[5m])
+          )
+
+      - record: instance:node_filesystem_avail:ratio
+        expr: >
+          min by (instance, host, env, plane) (
+            node_filesystem_avail_bytes{job="node", fstype!~"tmpfs|devtmpfs|overlay|squashfs|nsfs|ramfs|cgroup2?|autofs"}
+            / node_filesystem_size_bytes{job="node", fstype!~"tmpfs|devtmpfs|overlay|squashfs|nsfs|ramfs|cgroup2?|autofs"}
+          )
+
+      - record: instance:node_disk_io_time:rate5m
+        expr: >
+          max by (instance, host, env, plane) (
+            rate(node_disk_io_time_seconds_total{job="node"}[5m])
+          )
+
+  - name: slo.recording
+    # Per-service error ratio windows used by SLO burn-rate alerts.
+    rules:
+      - record: svc:slo_error_ratio:5m
+        expr: 1 - avg by (service, env) (avg_over_time(probe_success{job="blackbox_http"}[5m]))
+
+      - record: svc:slo_error_ratio:30m
+        expr: 1 - avg by (service, env) (avg_over_time(probe_success{job="blackbox_http"}[30m]))
+
+      - record: svc:slo_error_ratio:1h
+        expr: 1 - avg by (service, env) (avg_over_time(probe_success{job="blackbox_http"}[1h]))
+
+      - record: svc:slo_error_ratio:6h
+        expr: 1 - avg by (service, env) (avg_over_time(probe_success{job="blackbox_http"}[6h]))
+
+      - record: svc:slo_error_ratio:3d
+        expr: 1 - avg by (service, env) (avg_over_time(probe_success{job="blackbox_http"}[3d]))

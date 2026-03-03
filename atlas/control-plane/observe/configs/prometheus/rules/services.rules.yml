@@ -1,0 +1,46 @@
+groups:
+  - name: services.synthetic
+    rules:
+      - alert: ServiceDown
+        expr: probe_success{job="blackbox_http"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "Service down: {{ $labels.service }}"
+          description: "HTTP probe failing for 2m (target={{ $labels.instance }})."
+          runbook: "runbooks/service-down.md"
+
+      - alert: ServiceHttp5xx
+        expr: probe_http_status_code{job="blackbox_http"} >= 500
+        for: 2m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "HTTP 5xx from {{ $labels.service }}"
+          description: "Target returning {{ $value }} for 2m (target={{ $labels.instance }})."
+          runbook: "runbooks/service-5xx.md"
+
+      - alert: ServiceLatencyHighP95
+        expr: quantile_over_time(0.95, probe_duration_seconds{job="blackbox_http"}[15m]) > 2
+        for: 10m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "High latency p95 for {{ $labels.service }} (>2s)"
+          description: "p95 probe duration >2s for 10m (target={{ $labels.instance }})."
+          runbook: "runbooks/service-latency.md"
+
+      - alert: BlackboxExporterDown
+        expr: up{job=~"blackbox_.*"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          category: monitoring
+        annotations:
+          summary: "Blackbox exporter is down"
+          description: "Synthetic monitoring is blind (job={{ $labels.job }}, instance={{ $labels.instance }})."
+          runbook: "runbooks/blackbox-exporter-down.md"

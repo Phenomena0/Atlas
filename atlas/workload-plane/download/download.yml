@@ -1,0 +1,20 @@
+services:
+  atlas-download:
+    image: lscr.io/linuxserver/transmission:latest
+    container_name: atlas-download
+    environment:
+      - PUID=99
+      - PGID=100
+      - TZ=America/Toronto
+    volumes:
+      - /mnt/user/downloads/torrents:/watch
+      - /mnt/user/downloads/incomplete/:/downloads/incomplete
+      - /mnt/user/appdata/transmission:/config
+      - /mnt/user/downloads/completed/:/downloads/completed
+    ports:
+      - "51413:51413/tcp"
+      - "51413:51413/udp"
+      - "9091:9091/tcp"
+    restart: unless-stopped
+    networks:
+      - atlas-workload-network

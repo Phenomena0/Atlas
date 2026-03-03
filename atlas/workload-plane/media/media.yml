@@ -1,0 +1,65 @@
+services:
+  atlas-sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: atlas-sonarr
+    environment:
+      - PUID=99
+      - PGID=100
+      - TZ=America/Toronto
+    volumes:
+      - /mnt/user/appdata/sonarr:/config
+      - /mnt/user/media:/media
+      - /mnt/user/downloads:/downloads
+    ports:
+      - "8989:8989"
+    restart: unless-stopped
+    networks:
+      - atlas-workload-network
+
+  atlas-radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: atlas-radarr
+    environment:
+      - PUID=99
+      - PGID=100
+      - TZ=America/Toronto
+    volumes:
+      - /mnt/user/appdata/radarr:/config
+      - /mnt/user/media/movies:/movies
+      - /mnt/user/downloads/completed/radarr:/downloads/completed/radarr
+    ports:
+      - "7878:7878"
+    restart: unless-stopped
+    networks:
+      - atlas-workload-network
+
+  atlas-plex:
+    image: lscr.io/linuxserver/plex:latest
+    container_name: atlas-plex
+    environment:
+      - PUID=99
+      - PGID=100
+      - UMASK=022
+      - TZ=America/Los_Angeles
+      - VERSION=docker
+    ports:
+      - "32400:32400/tcp"
+      - "1900:1900/udp"   # DLNA
+      - "5353:5353/udp"   # mDNS/Bonjour
+      - "8324:8324/tcp"   # Roku companion / some clients
+      - "32410:32410/udp"
+      - "32412:32412/udp"
+      - "32413:32413/udp"
+      - "32414:32414/udp"
+      - "32469:32469/tcp" # DLNA
+
+    volumes:
+      - /mnt/user/appdata/plex:/config:rw
+      - /mnt/user/media/tv:/tv:rw
+      - /mnt/user/media/movies:/movies:rw
+      - /mnt/user/media/youtube:/youtube:rw
+    devices:
+      - /dev/dri:/dev/dri
+    restart: unless-stopped
+    networks:
+      - atlas-workload-network

@@ -1,0 +1,13 @@
+apiVersion: 1
+
+providers:
+  - name: "Unraid Dashboards - Services"
+    orgId: 1
+    folder: "Services"
+    folderUid: "services"
+    type: file
+    disableDeletion: true
+    editable: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards/synthetic/

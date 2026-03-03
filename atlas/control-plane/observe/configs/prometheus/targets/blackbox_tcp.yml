@@ -1,0 +1,16 @@
+- targets:
+    - ${MEDIA_STACK_HOST}:32400
+  labels:
+    env: lab
+    plane: unraid
+    service: atlas-plex
+    check: tcp
+    module: tcp_connect
+- targets:
+    - ${MEDIA_STACK_HOST}:9091
+  labels:
+    env: lab
+    plane: unraid
+    service: atlas-download
+    check: tcp
+    module: tcp_connect

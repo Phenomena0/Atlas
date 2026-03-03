@@ -1,0 +1,54 @@
+groups:
+  # Recording rules have moved to recording.rules.yml.
+  # svc:slo_error_ratio:{5m,30m,1h,6h,3d} are defined there.
+
+  - name: slo.burnrate
+    # SLO target: 99.5% availability (error budget = 0.5% = 0.005).
+    # Multi-window, multi-burn-rate pattern (Google SRE Workbook ch.5).
+    #
+    # Budget consumption thresholds:
+    #   Fast  (critical): >14.4x over 1h/5m   → exhausts budget in ~3 days
+    #   Slow  (warning):  >6x   over 6h/30m   → exhausts budget in ~7 days
+    #   Trend (info):     >1x   over 3d/6h    → on track to miss monthly SLO
+    rules:
+      - alert: SLOBurnRateFast
+        expr: >
+          (svc:slo_error_ratio:5m  / 0.005) > 14.4
+          and
+          (svc:slo_error_ratio:1h  / 0.005) > 6
+        for: 2m
+        labels:
+          severity: critical
+          category: slo
+        annotations:
+          summary: "SLO fast burn: {{ $labels.service }}"
+          description: "Service {{ $labels.service }} (env={{ $labels.env }}) is burning error budget at >14x. Budget will be exhausted in ~3 days at this rate."
+          runbook: "runbooks/slo-burnrate.md"
+
+      - alert: SLOBurnRateSlow
+        expr: >
+          (svc:slo_error_ratio:30m / 0.005) > 6
+          and
+          (svc:slo_error_ratio:6h  / 0.005) > 3
+        for: 15m
+        labels:
+          severity: warning
+          category: slo
+        annotations:
+          summary: "SLO slow burn: {{ $labels.service }}"
+          description: "Service {{ $labels.service }} (env={{ $labels.env }}) is steadily burning error budget at >6x. Budget will be exhausted in ~7 days at this rate."
+          runbook: "runbooks/slo-slow-burn.md"
+
+      - alert: SLOBurnRateTrend
+        expr: >
+          (svc:slo_error_ratio:6h  / 0.005) > 1
+          and
+          (svc:slo_error_ratio:3d  / 0.005) > 1
+        for: 1h
+        labels:
+          severity: info
+          category: slo
+        annotations:
+          summary: "SLO trend burn: {{ $labels.service }}"
+          description: "Service {{ $labels.service }} (env={{ $labels.env }}) has been consuming error budget above the sustainable rate for >1h over a 3-day window."
+          runbook: "runbooks/slo-slow-burn.md"

@@ -1,0 +1,14 @@
+groups:
+  - name: watchdog
+    rules:
+      # Always-firing alert. Alertmanager routes this to a dead man's switch
+      # (e.g. healthchecks.io). Silence = broken pipeline.
+      - alert: Watchdog
+        expr: vector(1)
+        labels:
+          severity: none
+          category: watchdog
+        annotations:
+          summary: "Alerting pipeline heartbeat"
+          description: "This alert fires continuously. If it stops arriving, the Prometheus → Alertmanager → notification pipeline is broken."
+          runbook: "runbooks/watchdog.md"

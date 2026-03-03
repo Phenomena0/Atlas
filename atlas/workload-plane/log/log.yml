@@ -1,0 +1,35 @@
+services:
+  atlas-node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: atlas-node-exporter
+    restart: unless-stopped
+    pid: host
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/host/rootfs"
+      - "--web.listen-address=:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host/rootfs:ro
+    ports:
+      - "9100:9100"
+    networks:
+      - atlas-workload-network
+
+  atlas-alloy:
+    image: grafana/alloy:latest
+    container_name: atlas-alloy
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /mnt/user/appdata/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /mnt/user/appdata/plex:/mnt/appdata/plex:ro
+      - /mnt/user/appdata/sonarr:/config/sonarr:ro
+      - /mnt/user/appdata/radarr:/config/radarr:ro
+      
+    command: ["run", "--server.http.listen-addr=0.0.0.0:12345", "/etc/alloy/config.alloy"]
+    networks:
+      - atlas-workload-network

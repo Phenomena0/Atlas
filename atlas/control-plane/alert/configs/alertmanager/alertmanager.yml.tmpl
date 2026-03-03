@@ -1,0 +1,76 @@
+global:
+  resolve_timeout: 5m
+  smtp_smarthost: "${SMTP_SMARTHOST}"
+  smtp_from: "${SMTP_FROM}"
+  smtp_auth_username: "${SMTP_USERNAME}"
+  smtp_auth_password: "${SMTP_PASSWORD}"
+  smtp_require_tls: true
+
+route:
+  receiver: email-default
+  group_by: ["alertname", "service", "host", "env"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 6h
+  routes:
+    # Watchdog heartbeat — route to dead man's switch, never email.
+    - matchers: ["alertname=Watchdog"]
+      receiver: watchdog
+      repeat_interval: 1m
+      group_wait: 0s
+
+    - matchers: ["severity=critical"]
+      receiver: email-critical
+      repeat_interval: 1h
+
+    - matchers: ["severity=warning"]
+      receiver: email-warning
+      repeat_interval: 6h
+
+    # info-severity alerts: digest only, low repeat cadence.
+    - matchers: ["severity=info"]
+      receiver: email-default
+      repeat_interval: 24h
+
+inhibit_rules:
+  # If the host is down, don't page on downstream symptoms from that same host.
+  - source_matchers: ["alertname=HostDown"]
+    target_matchers: ["alertname=~HostHighCpu|HostLowMemory|HostHighIoWait|HostNetworkInterfaceDown|DiskSpaceLowWarning|DiskSpaceLowCritical|InodesLow|FilesystemReadOnly"]
+    equal: ["host", "instance", "env"]
+
+  # If blackbox is down, suppress service-probe noise.
+  - source_matchers: ["alertname=BlackboxExporterDown"]
+    target_matchers: ["alertname=~ServiceDown|ServiceHttp5xx|ServiceLatencyHighP95|SLOBurnRateFast|SLOBurnRateSlow"]
+    equal: ["env"]
+
+  # Never suppress Watchdog with any inhibition rule.
+  # (no rule needed — Watchdog has severity=none, nothing targets it)
+
+receivers:
+  - name: email-default
+    email_configs:
+      - to: "${ALERT_EMAIL_TO}"
+        send_resolved: true
+        headers:
+          subject: "[MiseEnPlace] {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}"
+
+  - name: email-warning
+    email_configs:
+      - to: "${ALERT_EMAIL_TO}"
+        send_resolved: true
+        headers:
+          subject: "[MiseEnPlace][WARNING] {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}"
+
+  - name: email-critical
+    email_configs:
+      - to: "${ALERT_EMAIL_TO}"
+        send_resolved: true
+        headers:
+          subject: "[MiseEnPlace][CRITICAL] {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}"
+
+  # Watchdog dead man's switch — pings a URL every minute.
+  # Register a check at https://healthchecks.io and set WATCHDOG_PING_URL in .secrets.env.
+  - name: watchdog
+    webhook_configs:
+      - url: "${WATCHDOG_PING_URL}"
+        send_resolved: false

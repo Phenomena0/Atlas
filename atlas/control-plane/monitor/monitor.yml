@@ -1,0 +1,15 @@
+services:
+  atlas-grafana:
+    image: grafana/grafana-oss:10.4.3
+    container_name: atlas-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./env/.env
+      - ./env/.secrets.env
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitor/configs/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitor/configs/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks: [atlas-controlplane-network]

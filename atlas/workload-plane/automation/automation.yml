@@ -1,0 +1,31 @@
+services:
+  atlas-prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: atlas-prowlarr
+    environment:
+      - PUID=99
+      - PGID=100
+      - TZ=America/Toronto
+    volumes:
+      - /mnt/user/prowlarr/appdata:/config
+    ports:
+      - "9696:9696"
+    restart: unless-stopped
+    networks:
+      - atlas-workload-network
+
+  atlas-cleanuparr:
+    image: ghcr.io/cleanuparr/cleanuparr:latest
+    container_name: atlas-cleanuparr
+    environment:
+      - PUID=99
+      - PGID=100
+      - TZ=America/Toronto
+    volumes:
+      - /mnt/user/appdata/Cleanuparr:/config
+      - /mnt/user/downloads/incomplete/:/downloads
+    ports:
+      - "11011:11011"
+    restart: unless-stopped
+    networks:
+      - atlas-workload-network

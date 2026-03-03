@@ -1,0 +1,25 @@
+services:
+  atlas-loki:
+    image: grafana/loki:3.0.0
+    container_name: atlas-log
+    restart: unless-stopped
+    command: -config.file=/etc/loki/config.yml
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./log/configs/loki/config.yml:/etc/loki/config.yml:ro
+      - loki_data:/loki
+    networks: [atlas-controlplane-network]
+
+  atlas-alloy:
+    image: grafana/alloy:latest
+    container_name: atlas-alloy
+    restart: unless-stopped
+    command: run --server.http.listen-addr=0.0.0.0:12345 /etc/alloy/config.alloy
+    ports:
+      - "12345:12345"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./log/configs/alloy/config.alloy:/etc/alloy/config.alloy:ro
+    networks: [atlas-controlplane-network]

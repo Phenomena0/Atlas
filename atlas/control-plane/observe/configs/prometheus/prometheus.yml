@@ -1,0 +1,69 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/rules/recording.rules.yml   # pre-aggregated recording rules (load first)
+  - /etc/prometheus/rules/watchdog.rules.yml
+  - /etc/prometheus/rules/prometheus.rules.yml
+  - /etc/prometheus/rules/infra.rules.yml
+  - /etc/prometheus/rules/storage.rules.yml
+  - /etc/prometheus/rules/services.rules.yml
+  - /etc/prometheus/rules/slo.rules.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+        labels:
+          env: lab
+          plane: boh
+          service: prometheus
+
+  - job_name: node
+    file_sd_configs:
+      - files: ["/etc/prometheus/targets/node.yml"]
+        refresh_interval: 30s
+
+  - job_name: blackbox_http
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    file_sd_configs:
+      - files: ["/etc/prometheus/targets/blackbox_http.yml"]
+        refresh_interval: 30s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: atlas-blackbox-exporter:9115
+
+  - job_name: blackbox_tcp
+    metrics_path: /probe
+    params:
+      module: [tcp_connect]
+    file_sd_configs:
+      - files: ["/etc/prometheus/targets/blackbox_tcp.yml"]
+        refresh_interval: 30s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: atlas-blackbox-exporter:9115
+
+  - job_name: plex_exporter
+    static_configs:
+      - targets: ["atlas-plex-exporter:9594"]
+        labels:
+          env: lab
+          plane: unraid
+          service: atlas-plex

@@ -1,0 +1,40 @@
+services:
+  atlas-alert-render-config:
+    image: alpine:3.20
+    container_name: atlas-alert-render-config
+    restart: "no"
+    env_file:
+      - ./env/.env
+      - ./env/.secrets.env
+    volumes:
+      - ./alert/configs/alertmanager/alertmanager.yml.tmpl:/in/alertmanager.yml.tmpl:ro
+      - alertmanager_config:/out
+    entrypoint:
+      - /bin/sh
+      - -lc
+      - |
+        set -eu
+        apk add --no-cache gettext
+        envsubst < /in/alertmanager.yml.tmpl > /out/alertmanager.yml
+        echo "Rendered /out/alertmanager.yml"
+
+  atlas-alert:
+    image: prom/alertmanager:v0.27.0
+    container_name: atlas-alert
+    restart: unless-stopped
+    env_file:
+      - ./env/.env
+      - ./env/.secrets.env
+    depends_on:
+      atlas-alert-render-config:
+        condition: service_completed_successfully
+    command:
+      - "--config.file=/etc/alertmanager-rendered/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    ports:
+      - "9093:9093"
+    volumes:
+      - alertmanager_config:/etc/alertmanager-rendered
+      - alertmanager_data:/alertmanager
+    networks: [atlas-controlplane-network]
+

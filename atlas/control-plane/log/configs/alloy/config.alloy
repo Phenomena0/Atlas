@@ -1,0 +1,45 @@
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+loki.process "enrich" {
+  stage.static_labels {
+    values = {
+      job = "docker",
+      host = "boh-plane"
+    }
+  }
+  stage.labels {
+    values = {
+      container     = "__meta_docker_container_name",
+      service_name  = "__meta_docker_container_label_com_docker_compose_service",
+      project       = "__meta_docker_container_label_com_docker_compose_project",
+      image         = "__meta_docker_container_image",
+    }
+  }
+
+  stage.replace {
+    expression = "^/(.*)$"
+    replace    = "$1"
+    source     = "container"
+  }
+
+  stage.template {
+    source   = "service_name"
+    template = "{{ if .Value }}{{ .Value }}{{ else }}{{ .Labels.container }}{{ end }}"
+  }
+
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.source.docker "docker_logs" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.docker.containers.targets
+  forward_to = [loki.process.enrich.receiver]
+}

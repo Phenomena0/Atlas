@@ -1,0 +1,59 @@
+groups:
+  - name: prometheus.health
+    rules:
+      - alert: PrometheusRuleEvaluationFailures
+        expr: increase(prometheus_rule_evaluation_failures_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+          category: monitoring
+        annotations:
+          summary: "Prometheus rule evaluation failures"
+          description: "{{ $value }} rule evaluation failure(s) in the last 5m. Alerts may be silently misfiring."
+          runbook: "runbooks/prometheus-rule-evaluation-failures.md"
+
+      - alert: PrometheusConfigReloadFailed
+        expr: prometheus_config_last_reload_successful == 0
+        for: 5m
+        labels:
+          severity: critical
+          category: monitoring
+        annotations:
+          summary: "Prometheus config reload failed"
+          description: "The last Prometheus configuration reload was unsuccessful. Running on stale config."
+          runbook: "runbooks/prometheus-config-reload-failed.md"
+
+      - alert: PrometheusTargetMissing
+        expr: up{job="prometheus"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          category: monitoring
+        annotations:
+          summary: "Prometheus cannot scrape itself"
+          description: "Self-scrape for Prometheus (job=prometheus) has been failing for >2m."
+          runbook: "runbooks/prometheus-config-reload-failed.md"
+
+  - name: alertmanager.health
+    rules:
+      - alert: AlertmanagerConfigReloadFailed
+        expr: alertmanager_config_last_reload_successful == 0
+        for: 5m
+        labels:
+          severity: critical
+          category: monitoring
+        annotations:
+          summary: "Alertmanager config reload failed"
+          description: "The last Alertmanager configuration reload was unsuccessful. Alert routing may be stale."
+          runbook: "runbooks/alertmanager-config-reload-failed.md"
+
+      - alert: AlertmanagerNotificationsFailed
+        expr: rate(alertmanager_notifications_failed_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          category: monitoring
+        annotations:
+          summary: "Alertmanager notification delivery failures"
+          description: "Alertmanager is failing to deliver notifications on integration {{ $labels.integration }}."
+          runbook: "runbooks/alertmanager-config-reload-failed.md"

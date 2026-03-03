@@ -1,0 +1,5 @@
+name: atlas-workload-plane
+
+networks:
+  atlas-workload-network:
+    driver: bridge

@@ -1,0 +1,107 @@
+loki.write "default" {
+  endpoint {
+    url = "http://192.168.4.52:3100/loki/api/v1/push"
+  }
+}
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "docker_targets" {
+  targets = discovery.docker.containers.targets
+
+  // container = docker container name without leading slash
+  rule {
+    action        = "replace"
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "^/(.*)$"
+    target_label  = "container"
+    replacement   = "$1"
+  }
+
+  // compose_service / compose_project (will exist for compose-managed containers)
+  rule {
+    action        = "replace"
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    regex         = "(.+)"
+    target_label  = "compose_service"
+    replacement   = "$1"
+  }
+
+  rule {
+    action        = "replace"
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    regex         = "(.+)"
+    target_label  = "compose_project"
+    replacement   = "$1"
+  }
+
+  // Prefer compose_service, otherwise fall back to container name
+  rule {
+    action        = "replace"
+    source_labels = ["compose_service"]
+    regex         = "(.+)"
+    target_label  = "service_name"
+    replacement   = "$1"
+  }
+
+  // If compose_service is empty, use container as service_name
+  rule {
+    action        = "replace"
+    source_labels = ["compose_service", "container"]
+    regex         = "^;(.+)$"        // first empty, second populated
+    target_label  = "service_name"
+    replacement   = "$1"
+  }
+}
+
+loki.process "enrich" {
+  stage.static_labels {
+    values = {
+      job  = "docker",
+      host = "unraid",
+    }
+  }
+
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.source.docker "docker_logs" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.docker_targets.output
+  forward_to = [loki.process.enrich.receiver]
+}
+
+loki.source.file "log_files" {
+  targets = [
+    {
+      __path__ = "/mnt/appdata/plex/Library/Application Support/Plex Media Server/Logs/*.log",
+      job      = "docker", 
+      host     = "unraid", 
+      service_name = "atlas-plex", 
+      log_source   = "plex_file", 
+    },
+    {
+      __path__ = "/config/sonarr/logs/*.txt",
+      job      = "docker", 
+      host     = "unraid", 
+      service_name = "atlas-sonarr", 
+      log_source   = "sonarr_file", 
+    },
+    {
+      __path__ = "/config/radarr/logs/*.txt",
+      job      = "docker", 
+      host     = "unraid", 
+      service_name = "atlas-radarr", 
+      log_source   = "radarr_file", 
+    },
+  ]
+
+  forward_to = [loki.write.default.receiver]
+  
+  file_match {
+    enabled = true
+    sync_period = "10s"
+  }
+}

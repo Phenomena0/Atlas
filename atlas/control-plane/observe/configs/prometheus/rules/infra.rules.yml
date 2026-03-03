@@ -1,0 +1,61 @@
+groups:
+  - name: infra.availability
+    rules:
+      - alert: HostDown
+        expr: up{job="node"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "Host unreachable: {{ $labels.host }}"
+          description: "Prometheus cannot scrape node-exporter on {{ $labels.instance }} for >2m."
+          runbook: "runbooks/host-down.md"
+
+  - name: infra.performance
+    rules:
+      - alert: HostHighCpu
+        expr: (1 - avg by (instance, host, env) (rate(node_cpu_seconds_total{job="node",mode="idle"}[5m]))) > 0.90
+        for: 15m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "High CPU on {{ $labels.host }} (>90%)"
+          description: "CPU utilization >90% for 15m on {{ $labels.host }}."
+          runbook: "runbooks/host-high-cpu.md"
+
+      - alert: HostLowMemory
+        expr: (node_memory_MemAvailable_bytes{job="node"} / node_memory_MemTotal_bytes{job="node"}) < 0.10
+        for: 10m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "Low memory on {{ $labels.host }} (<10% available)"
+          description: "MemAvailable <10% for 10m on {{ $labels.host }}."
+          runbook: "runbooks/host-low-memory.md"
+
+      - alert: HostHighIoWait
+        expr: avg by (instance, host, env) (rate(node_cpu_seconds_total{job="node",mode="iowait"}[5m])) > 0.20
+        for: 15m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "High IO wait on {{ $labels.host }} (>20%)"
+          description: "CPU iowait >20% for 15m. Often indicates disk contention."
+          runbook: "runbooks/host-high-iowait.md"
+
+  - name: infra.network
+    rules:
+      - alert: HostNetworkInterfaceDown
+        expr: node_network_up{job="node",device!="lo"} == 0
+        for: 5m
+        labels:
+          severity: warning
+          category: network
+        annotations:
+          summary: "Network interface down on {{ $labels.host }}: {{ $labels.device }}"
+          description: "Interface {{ $labels.device }} has been down for 5m on {{ $labels.host }}."
+          runbook: "runbooks/host-nic-down.md"
