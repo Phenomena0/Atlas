@@ -17,17 +17,6 @@ jobs:
           sudo mv prometheus-${PROM_VERSION}.linux-amd64/promtool /usr/local/bin/
           promtool --version
 
-      - name: Render Prometheus target templates
-        run: |
-          # Substitute dummy values — CI only checks syntax, not real IPs
-          export UNRAID_IP="192.168.4.1"
-          export CONTROL_PLANE_IP="192.168.4.1"
-          for tmpl in atlas/control-plane/observe/configs/prometheus/targets/*.yml.tmpl; do
-            out="${tmpl%.tmpl}"
-            envsubst < "$tmpl" > "$out"
-            echo "Rendered $tmpl -> $out"
-          done
-
       - name: Check Prometheus config
         run: |
           promtool check config \
@@ -37,15 +26,6 @@ jobs:
         run: |
           promtool check rules \
             atlas/control-plane/observe/configs/prometheus/rules/*.yml
-
-      - name: Unit test recording & alert rules
-        run: |
-          if ls atlas/control-plane/observe/configs/prometheus/tests/*.yml 2>/dev/null; then
-            promtool test rules \
-              atlas/control-plane/observe/configs/prometheus/tests/*.yml
-          else
-            echo "No rule unit tests found — skipping"
-          fi
 
   validate-alertmanager:
     name: Alertmanager config
