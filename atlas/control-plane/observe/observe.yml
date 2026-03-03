@@ -1,8 +1,36 @@
 services:
+  atlas-prom-targets-render:
+    image: alpine:3.20
+    container_name: atlas-prom-targets-render
+    env_file:
+      - ./env/.env
+      - ./env/.secrets.env
+    volumes:
+      - ./observe/configs/prometheus/targets-templates:/templates:ro
+      - prometheus_targets:/rendered
+    entrypoint: []
+    command:
+      - /bin/sh
+      - -euc
+      - |
+        apk add --no-cache gettext
+        rm -rf /rendered/*
+        for f in /templates/*.yml; do
+          out="/rendered/$$(basename "$$f")"
+          envsubst < "$$f" > "$$out"
+          echo "Rendered: $$out"
+        done
+        echo "Done:"
+        ls -la /rendered
+    restart: "no"
+
   atlas-prometheus:
     image: prom/prometheus:v2.50.1
     container_name: atlas-prometheus
     restart: unless-stopped
+    depends_on:
+      atlas-prom-targets-render:
+        condition: service_completed_successfully
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
@@ -13,7 +41,7 @@ services:
     volumes:
       - ./observe/configs/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./observe/configs/prometheus/rules:/etc/prometheus/rules:ro
-      - ./observe/configs/prometheus/targets:/etc/prometheus/targets:ro
+      - prometheus_targets:/etc/prometheus/targets:ro
       - prometheus_data:/prometheus
     networks: [atlas-controlplane-network]
 

@@ -14,7 +14,7 @@ rule_files:
 alerting:
   alertmanagers:
     - static_configs:
-        - targets: ["alertmanager:9093"]
+        - targets: ["atlas-alert:9093"]
 
 scrape_configs:
   - job_name: prometheus
@@ -59,11 +59,3 @@ scrape_configs:
         target_label: instance
       - target_label: __address__
         replacement: atlas-blackbox-exporter:9115
-
-  - job_name: plex_exporter
-    static_configs:
-      - targets: ["atlas-plex-exporter:9594"]
-        labels:
-          env: lab
-          plane: unraid
-          service: atlas-plex

@@ -6,6 +6,7 @@ networks:
 
 volumes:
   prometheus_data:
+  prometheus_targets:
   alertmanager_data:
   alertmanager_config:
   grafana_data:
