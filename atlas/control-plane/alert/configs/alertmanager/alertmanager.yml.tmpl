@@ -1,9 +1,9 @@
 global:
   resolve_timeout: 5m
-  smtp_smarthost: "${SMTP_SMARTHOST}"
-  smtp_from: "${SMTP_FROM}"
-  smtp_auth_username: "${SMTP_USERNAME}"
-  smtp_auth_password: "${SMTP_PASSWORD}"
+  smtp_smarthost: "${ALERTMANAGER_SMTP_HOST}"
+  smtp_from: "${ALERTMANAGER_SMTP_FROM}"
+  smtp_auth_username: "${ALERTMANAGER_SMTP_USERNAME}"
+  smtp_auth_password: "${ALERTMANAGER_SMTP_PASSWORD}"
   smtp_require_tls: true
 
 route:
@@ -49,27 +49,25 @@ inhibit_rules:
 receivers:
   - name: email-default
     email_configs:
-      - to: "${ALERT_EMAIL_TO}"
+      - to: "${ALERTMANAGER_EMAIL_TO}"
         send_resolved: true
         headers:
           subject: "[MiseEnPlace] {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}"
 
   - name: email-warning
     email_configs:
-      - to: "${ALERT_EMAIL_TO}"
+      - to: "${ALERTMANAGER_EMAIL_TO}"
         send_resolved: true
         headers:
           subject: "[MiseEnPlace][WARNING] {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}"
 
   - name: email-critical
     email_configs:
-      - to: "${ALERT_EMAIL_TO}"
+      - to: "${ALERTMANAGER_EMAIL_TO}"
         send_resolved: true
         headers:
           subject: "[MiseEnPlace][CRITICAL] {{ .Status | toUpper }}: {{ .CommonLabels.alertname }}"
 
-  # Watchdog dead man's switch — pings a URL every minute.
-  # Register a check at https://healthchecks.io and set WATCHDOG_PING_URL in .secrets.env.
   - name: watchdog
     webhook_configs:
       - url: "${WATCHDOG_PING_URL}"

@@ -3,13 +3,13 @@ global:
   evaluation_interval: 15s
 
 rule_files:
-  - /etc/prometheus/rules/recording.rules.yml   # pre-aggregated recording rules (load first)
-  - /etc/prometheus/rules/watchdog.rules.yml
-  - /etc/prometheus/rules/prometheus.rules.yml
-  - /etc/prometheus/rules/infra.rules.yml
-  - /etc/prometheus/rules/storage.rules.yml
-  - /etc/prometheus/rules/services.rules.yml
-  - /etc/prometheus/rules/slo.rules.yml
+  - rules/recording.rules.yml 
+  - rules/watchdog.rules.yml
+  - rules/prometheus.rules.yml
+  - rules/infra.rules.yml
+  - rules/storage.rules.yml
+  - rules/services.rules.yml
+  - rules/slo.rules.yml
 
 alerting:
   alertmanagers:

@@ -1,4 +1,5 @@
 # Atlas
+![Validate](https://github.com/Phenomena0/Atlas/actions/workflows/validate.yml/badge.svg)
 
 Atlas is my homelab — a self-hosted media and automation stack running on Unraid, with a fully code-defined observability and alerting layer.
 
