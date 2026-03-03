@@ -1,16 +1,67 @@
 # Atlas
 ![Validate](https://github.com/Phenomena0/Atlas/actions/workflows/validate.yml/badge.svg)
 
-Atlas is my homelab — a self-hosted media and automation stack running on Unraid, with a fully code-defined observability and alerting layer.
+Atlas is a production-grade homelab platform built to senior SRE standards. It runs a self-hosted media and automation stack on Unraid, backed by a fully code-defined observability platform — multi-window SLO burn-rate alerting, structured log aggregation, synthetic probing, and a CI-validated configuration pipeline. All alerts link to runbooks. The entire stack is validated on every push via GitHub Actions.
+
+The control plane is being actively migrated to a kubeadm Kubernetes cluster (3-node, on Unraid VMs) with Flux GitOps and External Secrets.
+
+---
+
+## Architecture
+
+```mermaid
+flowchart TB
+    subgraph Unraid["Unraid Host (192.168.4.55)"]
+        subgraph WP["Workload Plane · Docker"]
+            direction TB
+            Plex["Plex :32400"]
+            Sonarr["Sonarr :8989"]
+            Radarr["Radarr :7878"]
+            Prowlarr["Prowlarr :9696"]
+            Transmission["Transmission :9091"]
+            Cleanuparr["Cleanuparr :11011"]
+            NE["Node Exporter :9100"]
+            WA["Alloy (workload) :12345"]
+        end
+
+        subgraph CP["Control Plane · Docker Compose (→ K8s)"]
+            direction TB
+            Prom["Prometheus :9090"]
+            AM["Alertmanager :9093"]
+            Graf["Grafana :3000"]
+            Loki["Loki :3100"]
+            BB["Blackbox Exporter :9115"]
+            CA["Alloy (control) :12345"]
+            PlexExp["Plex Exporter :9594"]
+        end
+    end
+
+    subgraph External["External"]
+        HC["healthchecks.io · Watchdog"]
+        Email["SMTP · Alerts"]
+    end
+
+    WA -->|"logs (Loki push)"| Loki
+    CA -->|"logs (Loki push)"| Loki
+    NE -->|metrics| Prom
+    BB -->|probe results| Prom
+    PlexExp -->|plex metrics| Prom
+    WP -->|"HTTP/TCP synthetic probes"| BB
+    Prom -->|alerts| AM
+    AM -->|"critical / warning"| Email
+    AM -->|"heartbeat (1m)"| HC
+    Graf -->|PromQL| Prom
+    Graf -->|LogQL| Loki
+```
 
 ---
 
 ## Architecture Overview
 
-Atlas is split into two logical planes, each deployed as a Docker Compose project.
+Atlas is split into two logical planes, each deployed as a Docker Compose project (control plane migrating to Kubernetes).
 
 ### Control Plane
-Runs on separte host and is responsible for observability and reliability enforcement.
+Responsible for observability and reliability enforcement.
 
 | Component | Role | Port |
 |---|---|---|
@@ -49,11 +100,11 @@ Each workload service is monitored via synthetic HTTP probes and infrastructure 
 
 ## Deployment
 
-Deployment is handled by `scripts/deploy.ps1`. It:
+Deployment is handled by [`scripts/deploy.ps1`](scripts/deploy.ps1). It:
 
 1. Copies the Alloy config to the Unraid host via `scp`
-2. Deploys the **workload plane** via `docker --context unraid compose`
-3. Deploys the **control plane** via `docker compose` (local)
+2. Deploys the **workload plane** to the Unraid Docker engine via `docker --context unraid compose`
+3. Deploys the **control plane** via `docker compose` (migrating to `kubectl apply -k k8s/overlays/lab`)
 
 ```powershell
 .\scripts\deploy.ps1
@@ -65,17 +116,17 @@ The control plane reads two env files from `atlas/control-plane/env/`:
 
 | File | Purpose |
 |---|---|
-| `.env` | Non-secret config (SMTP settings, Grafana config, Plex URL) |
-| `.secrets.env` | Secrets (SMTP password, Grafana admin password, Plex token) |
+| `.env` | Non-secret config (SMTP settings, Grafana config, Plex URL, host IPs) |
+| `.secrets.env` | Secrets (SMTP password, Grafana admin password, Plex token, Watchdog URL) |
 
 Copy the example files to get started:
 
 ```powershell
-Copy-Item atlas\control-plane\env\.env.example atlas\control-plane\env\.env
+Copy-Item atlas\control-plane\env\.env.example     atlas\control-plane\env\.env
 Copy-Item atlas\control-plane\env\.secrets.env.example atlas\control-plane\env\.secrets.env
 ```
 
-> The Alertmanager config (`alertmanager.yml.tmpl`) is rendered at startup using `envsubst`, injecting secrets from the env files at deploy time.
+> The Alertmanager config (`alertmanager.yml.tmpl`) is rendered at deploy time via `envsubst`, injecting values from the env files. The rendered `alertmanager.yml` is gitignored.
 
 ---
 
@@ -86,7 +137,7 @@ atlas/
 ├── control-plane/
 │   ├── core.yml                  # Shared network & volume definitions
 │   ├── env/                      # .env and .secrets.env (gitignored)
-│   ├── alert/                    # Alertmanager + config template
+│   ├── alert/                    # Alertmanager + config template (envsubst rendered)
 │   ├── observe/                  # Prometheus, Blackbox Exporter, Plex Exporter
 │   │   └── configs/prometheus/
 │   │       ├── prometheus.yml
@@ -103,8 +154,10 @@ atlas/
 │   └── log/                      # Node Exporter + Alloy (workload-plane)
 │
 ├── runbooks/                     # One file per alert, linked from alert annotations
-└── scripts/
-    └── deploy.ps1                # End-to-end deployment script
+├── scripts/
+│   ├── deploy.ps1                # Docker Compose deployment (workload plane)
+└── .github/workflows/
+    └── validate.yml              # CI: promtool, amtool, compose config, runbook coverage
 ```
 
 ---
@@ -118,7 +171,6 @@ Prometheus scrapes four job types:
 - **`node`** — host metrics from Node Exporter (file-based service discovery)
 - **`blackbox_http`** — HTTP synthetic probes via Blackbox Exporter
 - **`blackbox_tcp`** — TCP synthetic probes via Blackbox Exporter
-- **`plex_exporter`** — Plex Media Server metrics
 
 All metrics carry consistent labels: `env`, `plane`, `host`, `service`.
 
@@ -174,24 +226,25 @@ Grafana is provisioned automatically with:
 Control and workload planes are logically separated to:
 - Reduce blast radius
 - Improve alert clarity
-- Enable independent evolution
+- Enable independent evolution of observability vs. application concerns
 
 ### 2. Low-Noise Alerting
 
 - Alert categorization (infrastructure, storage, service, SLO)
 - Inhibition rules prevent alert storms from a single root cause
-- Severity normalization (`critical` / `warning`)
+- Severity normalization (`critical` / `warning` / `info`)
+- Dead man's switch (`Watchdog`) proves the pipeline is alive end-to-end
 - Every alert links to a runbook
 
 If Atlas pages, it is actionable.
 
 ### 3. Everything as Code
 
-All configuration is version-controlled:
+All configuration is version-controlled and CI-validated:
 
 - Docker Compose (all planes and services)
-- Prometheus scrape config, recording rules, and alert rules
-- Alertmanager routing and inhibition config
+- Prometheus scrape config, recording rules, and alert rules (`promtool`)
+- Alertmanager routing and inhibition config (`amtool`)
 - Grafana provisioning, datasources, and dashboards
 
 The control plane can be destroyed and rebuilt from source.
@@ -201,13 +254,12 @@ The control plane can be destroyed and rebuilt from source.
 All metrics carry consistent labels:
 
 - `env` — deployment environment (e.g. `lab`)
-- `plane` — logical plane (e.g. `unraid`, `boh`)
+- `plane` — logical plane (e.g. `unraid`)
 - `host` — physical/VM host
 - `service` — service name
 
 This enables reliable slicing, aggregation, and long-term maintainability.
 
----
 
 ## Alert Philosophy
 

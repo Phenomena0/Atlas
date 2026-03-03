@@ -7,7 +7,7 @@
     check: http
     module: http_2xx
 - targets:
-    - http://${MEDIA_STACK_HOST}5:8989
+    - http://${MEDIA_STACK_HOST}:8989
   labels:
     env: lab
     plane: unraid
