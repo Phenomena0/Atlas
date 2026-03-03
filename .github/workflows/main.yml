@@ -19,8 +19,8 @@ jobs:
 
       - name: Check Prometheus config
         run: |
-          promtool check config \
-            atlas/control-plane/observe/configs/prometheus/prometheus.yml
+          cd atlas/control-plane/observe/configs/prometheus
+          promtool check config prometheus.yml
 
       - name: Check Prometheus rules
         run: |
